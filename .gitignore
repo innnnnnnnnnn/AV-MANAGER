@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual Environment
+venv/
+env/
+.venv/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# 本地資料（不上傳到 GitHub）
+data/
+*.nfo
+*.jpg
+*.mp4
+*.avi
+*.mkv
+*.DIVX
+
+# 舊版本
+old ver./
+
+# IDE
+.vscode/
+.idea/
+
+# 環境變數
+.env

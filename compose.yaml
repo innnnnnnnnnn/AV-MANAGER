@@ -1,0 +1,45 @@
+# Docker Compose 檔案 - 適合 Flask 應用
+# 參考：https://docs.docker.com/compose/compose-file/
+
+services:
+  web:                          # 改成 web，更符合 Flask 慣例
+    build:
+      context: .                # 使用當前目錄的 Dockerfile
+    container_name: av-manager-web  # 可自訂容器名稱
+
+    ports:
+      - "8888:8888"             # 主機 8888 → 容器 8888
+
+    volumes:
+      - .:/app                  # 掛載整個專案，讓 templates/static 可讀取 + 熱重載
+
+    environment:
+      - FLASK_APP=app.py        # 你的主程式
+      - FLASK_ENV=development   # 開發模式：自動重載
+      - FLASK_RUN_HOST=0.0.0.0  # 讓容器內部能從外部連線
+      - FLASK_RUN_PORT=8888     # 容器內 Flask 跑在 8888 埠
+
+    command: flask run            # 用 flask run 啟動（推薦！支援熱重載）
+
+    restart: unless-stopped       # 自動重啟
+
+# 如果之後要加資料庫（如 PostgreSQL），可以取消註解以下部分
+# db:
+#   image: postgres:15
+#   restart: always
+#   environment:
+#     POSTGRES_DB: av_manager
+#     POSTGRES_USER: youruser
+#     POSTGRES_PASSWORD: yourpassword
+#   volumes:
+#     - db-data:/var/lib/postgresql/data
+#   ports:
+#     - "5432:5432"
+#   healthcheck:
+#     test: ["CMD", "pg_isready", "-U", "youruser"]
+#     interval: 10s
+#     timeout: 5s
+#     retries: 5
+
+# volumes:
+#   db-data:

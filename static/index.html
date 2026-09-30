@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AV 封面牆</title>
+  <style>
+    :root {
+      --bg: #141414;
+      --text: #e5e5e5;
+      --accent: #e50914;
+      --card: #221f1f;
+      --hover: #333;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: rgba(0,0,0,0.8);
+      padding: 15px 5%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    h1 { color: var(--accent); font-size: 2rem; }
+    .search-box { position: relative; width: 300px; }
+    #search {
+      width: 100%;
+      padding: 10px 40px 10px 15px;
+      border: none;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      font-size: 1rem;
+    }
+    #search:focus { outline:none; background: rgba(255,255,255,0.2); }
+    .search-icon {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #aaa;
+    }
+    .container {
+      display: flex;
+      flex: 1;
+      padding: 20px 5%;
+      gap: 30px;
+    }
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      background: var(--card);
+      padding: 20px;
+      border-radius: 8px;
+      height: fit-content;
+    }
+    .sidebar h3 { margin-bottom: 15px; color: var(--accent); }
+    .category-btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 8px;
+      background: #333;
+      border: none;
+      border-radius: 4px;
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .category-btn:hover, .category-btn.active { background: var(--accent); color: white; }
+    .filter-list {
+      margin-top: 10px;
+      max-height: 60vh;
+      overflow-y: auto;
+      padding-right: 10px;
+    }
+    .filter-item {
+      padding: 10px;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+    .filter-item:hover { background: var(--hover); }
+    .filter-item.active { background: var(--accent); color: white; }
+    .main { flex: 1; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.25s;
+    }
+    .card:hover { transform: scale(1.05); }
+    .card img {
+      width: 100%;
+      height: 150px;
+      object-fit: contain;  /* 完整比例顯示 */
+      background: #000;
+    }
+    .card .no-cover {
+      height: 300px;
+      background: #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: #aaa;
+    }
+    .card-info {
+      padding: 10px;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    .card-code { font-weight: bold; color: var(--accent); }
+    .intro {
+      text-align: center;
+      padding: 40px;
+      color: #aaa;
+    }
+    @media (max-width: 900px) {
+      .container { flex-direction: column; }
+      .sidebar { width: 100%; }
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+</head>
+<body>
+
+  <header>
+    <h1>AV 封面牆</h1>
+    <div class="search-box">
+      <input type="text" id="search" placeholder="搜尋番號 / 標題 / 女優..."/>
+      <i class="fas fa-search search-icon"></i>
+    </div>
+  </header>
+
+  <div class="intro" id="intro">
+    <p>請選擇你的 AV 資料夾（包含所有 .json 檔案）</p>
+    <input type="file" webkitdirectory directory id="folderInput"/>
+  </div>
+
+  <div class="container" id="mainContainer" style="display:none;">
+    <!-- 左側：分類按鈕 + 列表 -->
+    <div class="sidebar">
+      <h3>分類</h3>
+      <button class="category-btn active" data-category="all">全部</button>
+      <button class="category-btn" data-category="actress">出演者</button>
+      <button class="category-btn" data-category="series">系列</button>
+      <button class="category-btn" data-category="genre">類型</button>
+
+      <!-- 列表區域：按下按鈕後出現在下方 -->
+      <div id="filter-container" style="margin-top: 20px;"></div>
+    </div>
+
+    <!-- 右側：主封面牆 -->
+    <div class="main">
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+
+  <script>
+    let allVideos = [];
+    let currentCategory = "all";
+    let currentFilter = null;
+
+    const grid = document.getElementById("grid");
+    const filterContainer = document.getElementById("filter-container");
+    const searchInput = document.getElementById("search");
+    const intro = document.getElementById("intro");
+    const mainContainer = document.getElementById("mainContainer");
+
+    document.getElementById("folderInput").addEventListener("change", async (e) => {
+      const files = e.target.files;
+      if (!files.length) return;
+
+      allVideos = [];
+      intro.style.display = "none";
+      mainContainer.style.display = "flex";
+
+      for (const file of files) {
+        if (!file.name.endsWith(".json")) continue;
+
+        try {
+          const text = await file.text();
+          const data = JSON.parse(text);
+
+          let cover = data.cover_url || "";
+          if (cover && !cover.startsWith("http") && !cover.startsWith("file://")) {
+            cover = "file://" + cover;
+          }
+
+          allVideos.push({
+            code: file.name.replace(".json", "").toUpperCase(),
+            folder: file.webkitRelativePath.split("/").slice(0, -1).join("/"),
+            title: data.title || file.name.replace(".json", ""),
+            actress: data.出演者 || "不明",
+            series: data.系列 || "",
+            genres: data.類型?.split(" / ") || [],
+            desc: data.簡介 || "",
+            cover: cover
+          });
+        } catch (err) {
+          console.error("讀取 JSON 失敗:", file.name, err);
+        }
+      }
+
+      renderFilters("all");  // 初始顯示全部
+      renderGrid();
+    });
+
+    function renderFilters(category) {
+      filterContainer.innerHTML = "";
+
+      if (category === "all") return;
+
+      let title = "";
+      let items = new Set();
+      if (category === "actress") {
+        title = "出演者列表";
+        allVideos.forEach(v => items.add(v.actress));
+      } else if (category === "series") {
+        title = "系列列表";
+        allVideos.forEach(v => items.add(v.series));
+      } else if (category === "genre") {
+        title = "類型列表";
+        allVideos.forEach(v => v.genres.forEach(g => items.add(g.trim())));
+      }
+
+      const h4 = document.createElement("h4");
+      h4.textContent = title;
+      filterContainer.appendChild(h4);
+
+      [...items].sort().forEach(item => {
+        if (!item || item === "不明") return;
+        const div = document.createElement("div");
+        div.className = "filter-item";
+        div.textContent = item;
+        div.onclick = () => {
+          filterContainer.querySelectorAll(".filter-item").forEach(i => i.classList.remove("active"));
+          div.classList.add("active");
+          currentFilter = item;
+          renderGrid();
+        };
+        filterContainer.appendChild(div);
+      });
+    }
+
+    function renderGrid() {
+      grid.innerHTML = "";
+
+      let filtered = allVideos;
+
+      const q = searchInput.value.trim().toLowerCase();
+      if (q) {
+        filtered = filtered.filter(v =>
+          v.code.toLowerCase().includes(q) ||
+          v.title.toLowerCase().includes(q) ||
+          v.actress.toLowerCase().includes(q) ||
+          v.series.toLowerCase().includes(q) ||
+          v.genres.some(g => g.toLowerCase().includes(q))
+        );
+      }
+
+      if (currentCategory !== "all" && currentFilter) {
+        if (currentCategory === "actress") {
+          filtered = filtered.filter(v => v.actress === currentFilter);
+        } else if (currentCategory === "series") {
+          filtered = filtered.filter(v => v.series === currentFilter);
+        } else if (currentCategory === "genre") {
+          filtered = filtered.filter(v => v.genres.includes(currentFilter));
+        }
+      }
+
+      filtered.forEach(v => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          ${v.cover ? `<img src="${v.cover}" alt="${v.title}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22180%22 height=%22300%22><rect width=%22180%22 height=%22300%22 fill=%22%23333%22/><text x=%2250%25%22 y=%2250%25%22 font-size=%2216%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22>無封面</text></svg>'">` : 
+            `<div class="no-cover">無封面</div>`}
+          <div class="card-info">
+            <div class="card-code">${v.code}</div>
+            <div>${v.title}</div>
+          </div>
+        `;
+        card.onclick = () => window.open(`file://${v.folder}/`, "_blank");
+        grid.appendChild(card);
+      });
+    }
+
+    document.querySelectorAll(".category-btn").forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll(".category-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentCategory = btn.dataset.category;
+        currentFilter = null;
+        renderFilters(currentCategory);
+        renderGrid();
+      };
+    });
+
+    searchInput.addEventListener("input", renderGrid);
+  </script>
+</body>
+</html>
